@@ -3,10 +3,14 @@
 A python Client for connecting to the GSCF database
 using the API as described in:
    http://old.studies.dbnp.org/api/
-see also
-    https://github.com/PhenotypeFoundation/GSCF-RClient/blob/master/dbnp.functions.R
 
->>> from GCSFClient import Session
+Is implemented in pure python (version 2.6 and above), and can leverage
+the pandas library for data analysis if installed
+
+see also
+    https://github.com/PhenotypeFoundation/
+
+>>> from GSCFClient import Session
 >>> user = "username"
 >>> passwd = "password"
 >>> api_key = "api key"
@@ -22,10 +26,13 @@ see also
 
 >>> print "found {} studies".format(len(studies))
 
->>> # choose the first study that contains PPS in the title
->>> # and load the subjects of the study
->>> study_token = studies.index[studies['title'].str.contains('PPS')][0]
->>> subjects = session.getSubjectsForStudy(study_token,dataframe=True)
+>>> # choose the studies that contains PPS in the title
+>>> # and load the subjects of the first study
+>>> tokens = studies.index[studies['title'].str.contains('PPS')]
+>>> subjects = session.getSubjectsForStudy(tokens[0],dataframe=True)
+>>> # to load the subjects of multiple studies at the same time
+>>> # just pass a list of tokens
+>>> subjects = session.getSubjectsForStudy(tokens,dataframe=True)
 
 >>> #get all the assays of a study
 >>> assays = session.getAssaysForStudy(study_token)
@@ -116,28 +123,50 @@ class Session(object):
         else:
             raise ImportError("Pandas library (http://pandas.pydata.org/) is required for returning a dataframe")
 
-    def getStudies(self,dataframe=False):
+    def getStudies(self, dataframe=False):
+        """return all the studies that can be seen by the user
+        not all of these can be read (Samples and measurements can be private)"""
         res = self("getStudies")['studies']
         if dataframe: res = self.to_dataframe(res)
         return res
 
-    def getSubjectsForStudy(self,study_token,dataframe=False):
-        res = self('getSubjectsForStudy',{'studyToken':study_token})['subjects']
+    def getSubjectsForStudy(self, study_token, dataframe=False):
+        """take all the subjects from a study given the study token
+        if multiple token are given it will merge all the results"""
+        if isinstance(study_token,(str,unicode)): study_token = (study_token,)
+        res = []
+        for token in study_token:
+            res += self('getSubjectsForStudy',{'studyToken':token})['subjects']
         if dataframe: res = self.to_dataframe(res)
         return res
 
-    def getAssaysForStudy(self,assay_token,dataframe=False):
-        res = self("getAssaysForStudy",{'studyToken':assay_token})['assays']
+    def getAssaysForStudy(self, study_token, dataframe=False):
+        """take all the assays from a study given the study token
+        if multiple token are given it will merge all the results"""
+        if isinstance(study_token,(str,unicode)): study_token = (study_token,)
+        res = []
+        for token in study_token:
+            res += self("getAssaysForStudy",{'studyToken':token})['assays']
         if dataframe: res = self.to_dataframe(res)
         return res
 
-    def getSamplesForAssay(self,assay_token,dataframe=False):
-        res = self("getSamplesForAssay",{'assayToken':assay_token})["samples"]
+    def getSamplesForAssay(self, assay_token, dataframe=False):
+        """take all the samples from an assay given the assay token
+        if multiple token are given it will merge all the results"""
+        if isinstance(assay_token,(str,unicode)): assay_token = (assay_token,)
+        res = []
+        for token in assay_token:
+            res += self("getSamplesForAssay",{'assayToken':token})["samples"]
         if dataframe: res = self.to_dataframe(res)
         return res
 
-    def getMeasurementDataForAssay(self,assay_token,dataframe=False):
-        res = self("getMeasurementDataForAssay",{'assayToken':assay_token})["measurements"]
+    def getMeasurementDataForAssay(self, assay_token, dataframe=False):
+        """take all the measurements from an assay given the assay token
+        if multiple token are given it will merge all the results"""
+        if isinstance(assay_token,(str,unicode)): assay_token = (assay_token,)
+        res = []
+        for token in assay_token:
+            res += self("getMeasurementDataForAssay",{'assayToken':token})["measurements"]
         if dataframe:
             #the measurement data has a format different from the others, so must
             #be modified before converting it
