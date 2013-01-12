@@ -19,12 +19,12 @@ see also
 >>> api_key = "api key"
 >>> session = Session(user,passwd,api_key)
 
->>> # obtain it in pandas Dataframe format
->>> # need the pandas library installed
->>> # http://pandas.pydata.org/
->>> studies = session.getStudies(dataframe=True)
+>>> # set dataframe to False will return the json list of dicts instead of the dataframe object
+>>> # use only if you can't install the pandas library
+>>> session = Session(user,passwd,api_key, dataframe=False)
 
->>> # obtain the studies as a list of dictionaries
+>>> # connect to the old database (with the same API)
+>>> session = Session(user,passwd,api_key, baseurl="http://old.studies.dbnp.org/api/")
 >>> studies = session.getStudies()
 
 >>> print "found {} studies".format(len(studies))
@@ -32,17 +32,21 @@ see also
 >>> # choose the studies that contains PPS in the title
 >>> # and load the subjects of the first study
 >>> tokens = studies.index[studies['title'].str.contains('PPS')]
->>> subjects = session.getSubjectsForStudy(tokens[0],dataframe=True)
+>>> subjects = session.getSubjectsForStudy(tokens[0])
+
 >>> # to load the subjects of multiple studies at the same time
 >>> # just pass a list of tokens
->>> subjects = session.getSubjectsForStudy(tokens,dataframe=True)
+>>> # note the asterisk to explode the list!
+>>> subjects = session.getSubjectsForStudy(*tokens)
+>>> # equivalent sintax
+>>> subjects = session.getSubjectsForStudy(tokens[0],tokens[1])
 
 >>> #get all the assays of a study
->>> assays = session.getAssaysForStudy(study_token)
+>>> assays = session.getAssaysForStudy(tokens[0])
 
->>> # take the first assay of a study 
+>>> # take the first assay of a study
 >>> # and load all the samples and measurements
->>> # if there is no readable dataset will raise 
+>>> # if there is no readable dataset will raise
 >>> # 401 - not authorized HTTPError
 >>> assay_token = assays.index[0]
 >>> samples = session.getSamplesForAssay(assay_token)
