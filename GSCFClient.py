@@ -22,7 +22,7 @@ A python Client for connecting to the GSCF database
 using the API as described in:
    http://old.studies.dbnp.org/api/
 
-Is implemented in pure python (version 2.6 and above), and can leverage
+Is implemented in pure python (version 2.6 and above), and leverage
 the pandas library for data analysis if installed
 
 see also
@@ -34,12 +34,12 @@ see also
 >>> api_key = "api key"
 >>> session = Session(user,passwd,api_key)
 
->>> # obtain it in pandas Dataframe format
->>> # need the pandas library installed
->>> # http://pandas.pydata.org/
->>> studies = session.getStudies(dataframe=True)
+>>> # set dataframe to False will return the json list of dicts instead of the dataframe object
+>>> # use only if you can't install the pandas library
+>>> session = Session(user,passwd,api_key, dataframe=False)
 
->>> # obtain the studies as a list of dictionaries
+>>> # connect to the old database (with the same API)
+>>> session = Session(user,passwd,api_key, baseurl="http://old.studies.dbnp.org/api/")
 >>> studies = session.getStudies()
 
 >>> print "found {} studies".format(len(studies))
@@ -47,13 +47,17 @@ see also
 >>> # choose the studies that contains PPS in the title
 >>> # and load the subjects of the first study
 >>> tokens = studies.index[studies['title'].str.contains('PPS')]
->>> subjects = session.getSubjectsForStudy(tokens[0],dataframe=True)
+>>> subjects = session.getSubjectsForStudy(tokens[0])
+
 >>> # to load the subjects of multiple studies at the same time
 >>> # just pass a list of tokens
->>> subjects = session.getSubjectsForStudy(tokens,dataframe=True)
+>>> # note the asterisk to explode the list!
+>>> subjects = session.getSubjectsForStudy(*tokens)
+>>> # equivalent sintax
+>>> subjects = session.getSubjectsForStudy(tokens[0],tokens[1])
 
 >>> #get all the assays of a study
->>> assays = session.getAssaysForStudy(study_token)
+>>> assays = session.getAssaysForStudy(tokens[0])
 
 >>> # take the first assay of a study
 >>> # and load all the samples and measurements
@@ -77,13 +81,14 @@ class Session(object):
     it don't do any form of error chacking, as the urllib module raise a clear HTTPError
     if something goes wrong
     """
-    def __init__(self, username, password, api_key, baseurl="http://studies.dbnp.org/api/"):
+    def __init__(self, username, password, api_key, baseurl="http://studies.dbnp.org/api/", dataframe=True):
         """initialize the Session with the authentication credential on the given url"""
         #save the basic data
         self.user = username
         self.passwd = password
         self.apikey = api_key
         self.baseURL = baseurl
+        self.dataframe = dataframe
         #create the deviceID using the device mac address, a fixed string and the username
         base_string = 'GSCF database Python API'
         md5digest=md5.md5(str(get_mac())+base_string+username)
@@ -93,11 +98,12 @@ class Session(object):
         #try to load the pandas library for returning a DataFrame instead of
         #the JSON object. If pandas is not installed it will just disable the function,
         #not complains about it
-        try:
-            import pandas
-            self.pandas = pandas
-        except ImportError:
-            self.pandas = None
+        if dataframe:
+            try:
+                import pandas
+                self.pandas = pandas
+            except ImportError:
+                raise ImportError("Pandas library (http://pandas.pydata.org/) is required for returning a dataframe")
 
     def authenticate(self):
         """make the authentication to the server
@@ -135,57 +141,54 @@ class Session(object):
 
     def to_dataframe(self,data):
         """convert the given object to a pandas dataframe
-        if the library is loaded, else raises an error"""
-        if self.pandas:
-            return self.pandas.DataFrame(data).set_index('token')
-        else:
-            raise ImportError("Pandas library (http://pandas.pydata.org/) is required for returning a dataframe")
+        utility function, only for internal use"""
+        return self.pandas.DataFrame(data).set_index('token')
 
-    def getStudies(self, dataframe=False):
+    def getStudies(self):
         """return all the studies that can be seen by the user
         not all of these can be read (Samples and measurements can be private)"""
         res = self("getStudies")['studies']
-        if dataframe: res = self.to_dataframe(res)
+        if self.dataframe: 
+            res = self.to_dataframe(res)
         return res
 
-    def getSubjectsForStudy(self, study_token, dataframe=False):
+    def getSubjectsForStudy(self, *study_token):
         """take all the subjects from a study given the study token
         if multiple token are given it will merge all the results"""
-        if isinstance(study_token,(str,unicode)): study_token = (study_token,)
         res = []
         for token in study_token:
             res += self('getSubjectsForStudy',{'studyToken':token})['subjects']
-        if dataframe: res = self.to_dataframe(res)
+        if self.dataframe: 
+            res = self.to_dataframe(res)
         return res
 
-    def getAssaysForStudy(self, study_token, dataframe=False):
+    def getAssaysForStudy(self, *study_token):
         """take all the assays from a study given the study token
         if multiple token are given it will merge all the results"""
-        if isinstance(study_token,(str,unicode)): study_token = (study_token,)
         res = []
         for token in study_token:
             res += self("getAssaysForStudy",{'studyToken':token})['assays']
-        if dataframe: res = self.to_dataframe(res)
+        if self.dataframe: 
+            res = self.to_dataframe(res)
         return res
 
-    def getSamplesForAssay(self, assay_token, dataframe=False):
+    def getSamplesForAssay(self, *assay_token):
         """take all the samples from an assay given the assay token
         if multiple token are given it will merge all the results"""
-        if isinstance(assay_token,(str,unicode)): assay_token = (assay_token,)
         res = []
         for token in assay_token:
             res += self("getSamplesForAssay",{'assayToken':token})["samples"]
-        if dataframe: res = self.to_dataframe(res)
+        if self.dataframe: 
+            res = self.to_dataframe(res)
         return res
 
-    def getMeasurementDataForAssay(self, assay_token, dataframe=False):
+    def getMeasurementDataForAssay(self, *assay_token):
         """take all the measurements from an assay given the assay token
         if multiple token are given it will merge all the results"""
-        if isinstance(assay_token,(str,unicode)): assay_token = (assay_token,)
         res = []
         for token in assay_token:
             res += self("getMeasurementDataForAssay",{'assayToken':token})["measurements"]
-        if dataframe:
+        if self.dataframe:
             #the measurement data has a format different from the others, so must
             #be modified before converting it
             temp = [ dict([('token',k)]+v.items()) for k,v in res.iteritems()]
