@@ -96,8 +96,7 @@ class Session(object):
         #authenticate thyself to the server...do not really need a separate function
         self.authenticate()
         #try to load the pandas library for returning a DataFrame instead of
-        #the JSON object. If pandas is not installed it will just disable the function,
-        #not complains about it
+        #the JSON object. If pandas is not installed it will raise an ImportError
         if dataframe:
             try:
                 import pandas
